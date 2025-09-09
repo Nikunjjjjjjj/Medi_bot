@@ -1,14 +1,55 @@
-const socket = io();
-const input = document.getElementById('msgInput');
-const chat = document.getElementById('chat');
-const fileInput = document.getElementById('fileInput');
-const statusEl = document.getElementById('status');
-const micButton = document.querySelector('.mic-button');
+// Configuration - Update this with your backend URL
+const BACKEND_URL = 'https://medibot-production-03a5.up.railway.app';
+
+// Initialize Socket.IO connection to your deployed backend
+const socket = io(BACKEND_URL);
+
+// DOM elements - initialized after DOM is loaded
+let input, chat, fileInput, statusEl, micButton;
 
 // Recording state
 let isRecording = false;
 let mediaRecorder = null;
 let audioChunks = [];
+
+// Initialize DOM elements when page loads
+document.addEventListener('DOMContentLoaded', function() {
+  input = document.getElementById('msgInput');
+  chat = document.getElementById('chat');
+  fileInput = document.getElementById('fileInput');
+  statusEl = document.getElementById('status');
+  micButton = document.querySelector('.mic-button');
+  
+  // Add connection status indicator
+  addConnectionStatus();
+});
+
+// Add connection status to the page
+function addConnectionStatus() {
+  const statusDiv = document.createElement('div');
+  statusDiv.id = 'connectionStatus';
+  statusDiv.style.cssText = 'position: fixed; top: 10px; right: 10px; padding: 5px 10px; border-radius: 5px; font-size: 12px; z-index: 1000;';
+  document.body.appendChild(statusDiv);
+  
+  // Update connection status
+  socket.on('connect', () => {
+    statusDiv.textContent = '🟢 Connected';
+    statusDiv.style.backgroundColor = '#d4edda';
+    statusDiv.style.color = '#155724';
+  });
+  
+  socket.on('disconnect', () => {
+    statusDiv.textContent = '🔴 Disconnected';
+    statusDiv.style.backgroundColor = '#f8d7da';
+    statusDiv.style.color = '#721c24';
+  });
+  
+  socket.on('connect_error', () => {
+    statusDiv.textContent = '⚠️ Connection Error';
+    statusDiv.style.backgroundColor = '#fff3cd';
+    statusDiv.style.color = '#856404';
+  });
+}
 
 function sendMessage() {
   const msg = input.value;
@@ -52,7 +93,7 @@ function playBotAudio(url) {
     audio.addEventListener('ended', () => {
       console.log('Audio playback ended, deleting file:', url);
       const filename = url.split('/').pop();
-      fetch(`/uploads/${filename}`, { method: 'DELETE' })
+      fetch(`${BACKEND_URL}/uploads/${filename}`, { method: 'DELETE' })
         .then(response => {
           if (response.ok) {
             console.log('Audio file deleted successfully');
@@ -73,7 +114,7 @@ function playBotAudio(url) {
         // Also delete when user clicks the link
         setTimeout(() => {
           const filename = url.split('/').pop();
-          fetch(`/uploads/${filename}`, { method: 'DELETE' })
+          fetch(`${BACKEND_URL}/uploads/${filename}`, { method: 'DELETE' })
             .then(response => {
               if (response.ok) {
                 console.log('Audio file deleted after manual play');
@@ -169,7 +210,7 @@ async function sendRecordedAudio(audioBlob) {
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.wav');
 
-    const res = await fetch('/upload-audio', {
+    const res = await fetch(`${BACKEND_URL}/upload-audio`, {
       method: 'POST',
       body: formData,
     });
@@ -205,7 +246,7 @@ async function handleFileUpload(event) {
     const formData = new FormData();
     formData.append('audio', file);
 
-    const res = await fetch('/upload-audio', {
+    const res = await fetch(`${BACKEND_URL}/upload-audio`, {
       method: 'POST',
       body: formData,
     });
@@ -233,6 +274,22 @@ async function handleFileUpload(event) {
   }
 }
 
-// expose for inline handlers
+// Expose functions for inline handlers
+window.sendMessage = sendMessage;
 window.toggleRecording = toggleRecording;
 window.handleFileUpload = handleFileUpload;
+
+// Add error handling for Socket.IO connection
+socket.on('connect_error', (error) => {
+  console.error('Socket.IO connection error:', error);
+  if (statusEl) {
+    statusEl.textContent = 'Connection error. Please check if backend is running.';
+    statusEl.style.color = 'red';
+  }
+});
+
+// Add error handling for bot responses
+socket.on('error', (error) => {
+  console.error('Socket.IO error:', error);
+  appendMessage('Error', 'Connection error occurred');
+});

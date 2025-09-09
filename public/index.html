@@ -88,7 +88,8 @@
   <input type="file" id="fileInput" accept="audio/*,.mp3" onchange="handleFileUpload(event)" />
   <div id="status" class="status"></div>
 
-  <script src="/socket.io/socket.io.js"></script>
+  <!-- Load Socket.IO from CDN since backend is deployed separately -->
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <script src="chat.js"></script>
 </body>
 </html>

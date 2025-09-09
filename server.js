@@ -11,7 +11,15 @@ const { transcribeAudio } = require('./services/transcribe');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+
+// Configure Socket.IO for Railway deployment
+const io = socketIo(server, {
+  cors: {
+    origin: ["https://jocular-medovik-513536.netlify.app", "http://localhost:3000"],
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
 // Expose uploaded/generated files for direct access (e.g., MP3 replies)
@@ -23,6 +31,29 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
 }
 const upload = multer({ dest: uploadsDir });
+
+// Health check endpoint for Railway
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    port: process.env.PORT || 3000,
+    hasOpenAI: !!process.env.OPENAI_API_KEY,
+    hasPinecone: !!process.env.PINECONE_API_KEY,
+    nodeVersion: process.version
+  });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'MediBot Backend is running!',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    endpoints: ['/health', '/upload-audio', '/uploads/*']
+  });
+});
 
 // Audio upload + transcription endpoint
 app.post('/upload-audio', upload.single('audio'), async (req, res) => {
@@ -68,4 +99,26 @@ io.on('connection', socket => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => logger.info(`Server listening on port ${PORT}`));
+
+// Add error handling
+server.on('error', (err) => {
+  logger.error('Server error:', err);
+  process.exit(1);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    logger.info('Process terminated');
+    process.exit(0);
+  });
+});
+
+// Start server
+server.listen(PORT, '0.0.0.0', () => {
+  logger.info(`Server listening on port ${PORT}`);
+  logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`OpenAI API Key: ${process.env.OPENAI_API_KEY ? 'Set' : 'Not set'}`);
+  logger.info(`Pinecone API Key: ${process.env.PINECONE_API_KEY ? 'Set' : 'Not set'}`);
+});
