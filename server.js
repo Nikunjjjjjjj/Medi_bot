@@ -5,9 +5,34 @@ const socketIo = require('socket.io');
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
-const { getSemanticResponse } = require('./socket');
-const logger = require('./utils/logger');
-const { transcribeAudio } = require('./services/transcribe');
+// Load dependencies with error handling
+let getSemanticResponse, logger, transcribeAudio;
+
+try {
+  const socketModule = require('./socket');
+  getSemanticResponse = socketModule.getSemanticResponse;
+  console.log('✅ Socket module loaded');
+} catch (err) {
+  console.error('❌ Socket module error:', err);
+  getSemanticResponse = () => ({ text: 'Socket module not available', audioUrl: null });
+}
+
+try {
+  logger = require('./utils/logger');
+  console.log('✅ Logger module loaded');
+} catch (err) {
+  console.error('❌ Logger module error:', err);
+  logger = { info: console.log, error: console.error };
+}
+
+try {
+  const transcribeModule = require('./services/transcribe');
+  transcribeAudio = transcribeModule.transcribeAudio;
+  console.log('✅ Transcribe module loaded');
+} catch (err) {
+  console.error('❌ Transcribe module error:', err);
+  transcribeAudio = () => Promise.resolve('Transcription not available');
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -92,9 +117,22 @@ app.delete('/uploads/:filename', (req, res) => {
 io.on('connection', socket => {
   logger.info('User connected');
   socket.on('userMessage', async (msg) => {
-    logger.info(`Received message: ${msg}`);
-    const response = await getSemanticResponse(msg);
-    socket.emit('botResponse', response);
+    try {
+      logger.info(`Received message: ${msg}`);
+      const response = await getSemanticResponse(msg);
+      socket.emit('botResponse', response);
+    } catch (err) {
+      logger.error('Error processing message:', err);
+      socket.emit('botResponse', { text: 'Sorry, I encountered an error processing your message.', audioUrl: null });
+    }
+  });
+  
+  socket.on('disconnect', () => {
+    logger.info('User disconnected');
+  });
+  
+  socket.on('error', (err) => {
+    logger.error('Socket error:', err);
   });
 });
 
