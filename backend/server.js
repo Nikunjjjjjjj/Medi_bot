@@ -37,10 +37,43 @@ try {
 const app = express();
 const server = http.createServer(app);
 
+// Add CORS middleware for Express routes
+app.use((req, res, next) => {
+  const allowedOrigins = [
+    "https://jocular-medovik-513536.netlify.app", // Your existing Netlify domain
+    "http://localhost:3000", 
+    "http://localhost:3001",
+    // Add your new Netlify domain here when you deploy
+    process.env.FRONTEND_URL // Environment variable for frontend URL
+  ].filter(Boolean); // Remove any undefined values
+  
+  const origin = req.headers.origin;
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
+
 // Configure Socket.IO for Railway deployment
 const io = socketIo(server, {
   cors: {
-    origin: ["https://jocular-medovik-513536.netlify.app", "http://localhost:3000"],
+    origin: [
+      "https://jocular-medovik-513536.netlify.app", // Your existing Netlify domain
+      "http://localhost:3000", 
+      "http://localhost:3001",
+      // Add your new Netlify domain here when you deploy
+      process.env.FRONTEND_URL // Environment variable for frontend URL
+    ].filter(Boolean), // Remove any undefined values
     methods: ["GET", "POST"],
     credentials: true
   }
