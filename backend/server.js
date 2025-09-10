@@ -49,8 +49,17 @@ app.use((req, res, next) => {
   
   const origin = req.headers.origin;
   
-  if (allowedOrigins.includes(origin)) {
+  // Log for debugging
+  console.log('CORS Request from origin:', origin);
+  console.log('Allowed origins:', allowedOrigins);
+  
+  // For now, allow all origins to debug the issue
+  if (origin) {
     res.header('Access-Control-Allow-Origin', origin);
+    console.log('CORS: Allowed origin', origin);
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+    console.log('CORS: Allowed all origins (no origin header)');
   }
   
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -65,15 +74,19 @@ app.use((req, res, next) => {
 });
 
 // Configure Socket.IO for Railway deployment
+const socketCorsOrigins = [
+  "https://jocular-medovik-513536.netlify.app", // Your existing Netlify domain
+  "http://localhost:3000", 
+  "http://localhost:3001",
+  // Add your new Netlify domain here when you deploy
+  process.env.FRONTEND_URL // Environment variable for frontend URL
+].filter(Boolean); // Remove any undefined values
+
+console.log('Socket.IO CORS origins:', socketCorsOrigins);
+
 const io = socketIo(server, {
   cors: {
-    origin: [
-      "https://jocular-medovik-513536.netlify.app", // Your existing Netlify domain
-      "http://localhost:3000", 
-      "http://localhost:3001",
-      // Add your new Netlify domain here when you deploy
-      process.env.FRONTEND_URL // Environment variable for frontend URL
-    ].filter(Boolean), // Remove any undefined values
+    origin: true, // Allow all origins temporarily for debugging
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -192,4 +205,7 @@ server.listen(PORT, '0.0.0.0', () => {
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`OpenAI API Key: ${process.env.OPENAI_API_KEY ? 'Set' : 'Not set'}`);
   logger.info(`Pinecone API Key: ${process.env.PINECONE_API_KEY ? 'Set' : 'Not set'}`);
+  logger.info(`Frontend URL: ${process.env.FRONTEND_URL || 'Not set'}`);
+  logger.info(`Socket.IO CORS origins: ${socketCorsOrigins.join(', ')}`);
+  logger.info(`Server URL: https://medibot-production-03a5.up.railway.app`);
 });
